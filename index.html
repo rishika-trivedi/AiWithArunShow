@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" href="style.css" />
+    <!-- Linking Swiper CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"
+    />
+    <!-- linking font awesome (icons) -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+    />
+    <!-- google fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders:opsz,wght@10..72,100..900&family=Cinzel:wght@400..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Tuffy:ital,wght@0,400;0,700;1,400;1,700&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&family=Winky+Rough:ital,wght@0,300..900;1,300..900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders:opsz,wght@10..72,100..900&family=Cinzel:wght@400..900&family=Edu+SA+Hand:wght@400..700&family=Merriweather:ital,opsz,wght@0,18..144,300..900;1,18..144,300..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oswald:wght@200..700&family=Tuffy:ital,wght@0,400;0,700;1,400;1,700&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&family=Winky+Rough:ital,wght@0,300..900;1,300..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>AI With Arun Show</title>
+  </head>
+  <body>
+    <!-- Header and Nav Bar -->
+    <header>
+      <nav class="navbar section-content">
+        <a href="#" class="nav-logo">
+          <h2 class="logo-text">AI With Arun Show</h2>
+        </a>
+        <ul class="nav-menu">
+          <button id="menu-close-button" class="fas fa-times"></button>
+
+          <li class="nav-item">
+            <a href="#" class="nav-link">Home</a>
+          </li>
+          <li class="nav-item">
+            <a href="#about" class="nav-link">About</a>
+          </li>
+          <li class="nav-item">
+            <a href="#testimonials" class="nav-link">Most Viewed</a>
+          </li>
+          <li class="nav-item">
+            <a href="#contact" class="nav-link">Contact</a>
+          </li>
+        </ul>
+
+        <button id="menu-open-button" class="fas fa-bars"></button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- Hero Section -->
+      <section class="hero-section">
+        <div class="section-content">
+          <div class="hero-details">
+            <h2 class="title">Ai wITh Arun</h2>
+            <h3 class="subtitle">Arun Trivedi</h3>
+            <p class="description">
+              Join Tea & Talk for candid conversations with founders, CXOs,
+              policymakers, and innovators as they share their unique AI
+              journeys.
+            </p>
+            <div class="buttons">
+              <a
+                href="https://www.youtube.com/@AIwithArunShow/featured"
+                target="_blank"
+                class="button about-me"
+                >Youtube</a
+              >
+              <a href="#contact" class="button contact-us">Contact Us</a>
+            </div>
+          </div>
+          <div class="hero-image-wrapped">
+            <img src="newlogorb.png" alt="AIWAS LOGO" class="hero-image" />
+          </div>
+        </div>
+      </section>
+
+      <!-- about section -->
+      <section class="about-section" id="about">
+        <div class="section-content">
+          <div class="about-image-wrapper">
+            <img
+              src="aruntrivedipfp.png"
+              alt=" picture of Arun Trivedi"
+              class="about-image"
+            />
+          </div>
+          <div class="about-details">
+            <h2 class="section-title">About The Show</h2>
+            <p class="text">
+              Discover the behind-the-scenes stories, the hurdles they overcame,
+              and the keys to their success. Most importantly, learn how they’re
+              harnessing AI to tackle real-world challenges and what they think
+              about the future. Whether you’re an aspiring entrepreneur or
+              simply curious about the AI landscape, the AI with Arun Show
+              promises to serve you a steaming cup of inspiration—one interview
+              at a time. Subscribe now, and let’s explore the exciting world of
+              artificial intelligence together!
+            </p>
+            <div class="social-link-list">
+              <a
+                href="https://www.youtube.com/@AIwithArunShow/featured"
+                target="_blank"
+                class="social-link"
+                ><i class="fa-brands fa-youtube"></i
+              ></a>
+              <a
+                href="https://www.instagram.com/aiwitharunshow/"
+                target="_blank"
+                class="social-link"
+                ><i class="fa-brands fa-instagram"></i
+              ></a>
+              <a
+                href="https://www.linkedin.com/in/aruntrivedi?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app"
+                target="_blank"
+                class="social-link"
+                ><i class="fa-brands fa-linkedin"></i
+              ></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Most Viewed section -->
+      <section class="testimonials-section" id="testimonials">
+        <h2 class="section-title">Most Viewed</h2>
+        <div class="section-content">
+          <div class="slider-container swiper">
+            <div class="slider-wrapper">
+              <ul class="testimonials-list swiper-wrapper">
+                <li class="testimonial swiper-slide">
+                  <img
+                    src="video1.jpg"
+                    alt="#1 Most Viewed"
+                    class="user-image"
+                  />
+                  <h3 class="name">Vinayak Lohani</h3>
+                  <i class="feedback">40k Views</i>
+                </li>
+
+                <li class="testimonial swiper-slide">
+                  <img
+                    src="video2.jpg"
+                    alt="#2 Most Viewed"
+                    class="user-image"
+                  />
+                  <h3 class="name">Oaken's Shashi</h3>
+                  <i class="feedback">29k Views</i>
+                </li>
+
+                <li class="testimonial swiper-slide">
+                  <img
+                    src="video3.jpg"
+                    alt="#3 Most Viewed"
+                    class="user-image"
+                  />
+                  <h3 class="name">Vini Khabya</h3>
+                  <i class="feedback">28k Views</i>
+                </li>
+
+                <li class="testimonial swiper-slide">
+                  <img
+                    src="video4.jpg"
+                    alt="#4 Most Viewed"
+                    class="user-image"
+                  />
+                  <h3 class="name">Niraj</h3>
+                  <i class="feedback">25k Views</i>
+                </li>
+
+                <li class="testimonial swiper-slide">
+                  <img
+                    src="video5.jpg"
+                    alt="#5 Most Viewed"
+                    class="user-image"
+                  />
+                  <h3 class="name">Ram Sharma</h3>
+                  <i class="feedback">16k Views</i>
+                </li>
+
+                <li class="testimonial swiper-slide">
+                  <img
+                    src="video6.jpg"
+                    alt="#6 Most Viewed"
+                    class="user-image"
+                  />
+                  <h3 class="name">Arjun Malhotra</h3>
+                  <i class="feedback">16k Views</i>
+                </li>
+              </ul>
+
+              <div class="swiper-pagination"></div>
+              <div class="swiper-slide-button swiper-button-prev"></div>
+              <div class="swiper-slide-button swiper-button-next"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Contact us Section -->
+      <section class="contact-section" id="contact">
+        <h2 class="section-title">Contact Us</h2>
+        <div class="section-content">
+          <ul class="contact-info-list">
+            <li class="contact-info">
+              <i class="fa-solid fa-location-crosshairs"></i>
+              <p>Bay Area, CA</p>
+            </li>
+
+            <li class="contact-info">
+              <i class="fa-regular fa-envelope"></i>
+              <p>aruntrivedi@gmail.com</p>
+            </li>
+
+            <li class="contact-info">
+              <i class="fa-solid fa-globe"></i>
+              <p>www.youtube.com/@AIwithArunShow</p>
+            </li>
+          </ul>
+
+          <form
+            action="https://formsubmit.co/aruntrivedi@gmail.com"
+            method="POST"
+            class="contact-form"
+          >
+            <input
+              type="text"
+              name="name"
+              placeholder="Your name"
+              class="form-input"
+              required
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Your email"
+              class="form-input"
+              required
+            />
+            <textarea
+              name="message"
+              placeholder="Your message"
+              class="form-input"
+              required
+            ></textarea>
+            <button type="submit" class="submit-button">Submit</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Footer section -->
+      <footer class="footer-section">
+        <div class="section-content">
+          <p class="copyright-text">© 2025 AI With Arun Show</p>
+
+          <div class="social-link-list">
+            <a
+              href="https://www.youtube.com/@AIwithArunShow/featured"
+              target="_blank"
+              class="social-link"
+              ><i class="fa-brands fa-youtube"></i
+            ></a>
+            <a
+              href="https://www.instagram.com/aiwitharunshow/"
+              target="_blank"
+              class="social-link"
+              ><i class="fa-brands fa-instagram"></i
+            ></a>
+            <a
+              href="https://www.linkedin.com/in/aruntrivedi?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app"
+              target="_blank"
+              class="social-link"
+              ><i class="fa-brands fa-linkedin"></i
+            ></a>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- Linking Swiper Script -->
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+    <!-- Linking custom Script -->
+    <script src="script.js"></script>
+  </body>
+</html>
