@@ -386,6 +386,65 @@ header .navbar {
   transition: 0.2s ease;
 }
 
+/* AI Chat Bot */
+
+.chatbot-popup {
+  width: 420px;
+  background: #ebeff3;
+  overflow: hidden;
+  border-radius: 15px;
+  box-shadow: 0 0 128px 0 rgba(0, 0, 0, 0.1),
+    0 32px 64px -48px rgba(0, 0, 0, 0.5);
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  background: #42535f;
+  padding: 15px 22px;
+  justify-content: space-between;
+}
+
+.chat-header .header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-info .chatbot-logo {
+  height: 35px;
+  width: 35px;
+  background: white;
+  border-radius: 50%;
+  padding: 6px;
+  fill: #42535f;
+  flex-shrink: 0;
+}
+
+.header-info .logo-text {
+  color: white;
+  font-size: 1.31rem;
+  font-weight: 600;
+}
+
+.chat-header #close-chatbot {
+  border: none;
+  color: white;
+  height: 40px;
+  width: 40px;
+  font-size: 1.9rem;
+  margin-right: -10px;
+  padding-top: 2px;
+  cursor: pointer;
+  border-radius: 50%;
+  background: none;
+  transition: 0.2s ease;
+}
+
+.chat-header #close-chatbot:hover {
+  background: #272d31;
+}
+
 @media screen and (max-width: 900px) {
   body.show-mobile-menu {
     overflow: hidden;
