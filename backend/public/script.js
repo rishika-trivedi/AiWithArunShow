@@ -80,7 +80,12 @@ const generateBotResponse = async (incomingMessageDiv) => {
   body: JSON.stringify({ prompt: userData.message }),
     });
 
-    const data = await response.json();
+    if (data.guarded) {
+  chatBody.appendChild(createChatLi(data.message, "bot-message"));
+  chatBody.scrollTo(0, chatBody.scrollHeight);
+  return;
+}
+
 
     if (!response.ok) throw new Error(data.error?.message || "API error");
 
