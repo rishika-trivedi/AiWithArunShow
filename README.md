@@ -1,8 +1,8 @@
-AI With Arun Show – AI Chatbot 🤖
+AI With Arun Show – AI Chatbot 
 
-An AI-powered chatbot built for the AI With Arun Show website using Google Gemini, with a secure Node.js backend and full production deployment.
+An AI-powered chatbot built for the **AI With Arun Show** website using **Google Gemini**, with a secure Node.js backend and full production deployment.
 
-🌐 Live: https://aiwitharunshow.com
+ Live: https://aiwitharunshow.com
 
 ---
 
