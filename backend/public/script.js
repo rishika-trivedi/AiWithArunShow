@@ -80,11 +80,61 @@ const generateBotResponse = async (incomingMessageDiv) => {
   body: JSON.stringify({ prompt: userData.message }),
     });
 
-    if (data.guarded) {
-  chatBody.appendChild(createChatLi(data.message, "bot-message"));
-  chatBody.scrollTo(0, chatBody.scrollHeight);
-  return;
-}
+    // GENERATE BOT RESPONSE (CALL BACKEND)
+const generateBotResponse = async (incomingMessageDiv) => {
+  const messageElement = incomingMessageDiv.querySelector(".message-text");
+
+  // Save user message into history (optional, you aren't sending history right now)
+  chatHistory.push({
+    role: "user",
+    parts: [
+      { text: userData.message },
+      ...(userData.file.data ? [{ inline_data: userData.file }] : []),
+    ],
+  });
+
+  try {
+    const response = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: userData.message }),
+    });
+
+    // ✅ IMPORTANT: actually parse the JSON into "data"
+    const data = await response.json().catch(() => null);
+
+    // ✅ If backend guardrails blocked it
+    if (data?.guarded) {
+      messageElement.innerText = data.message;
+      incomingMessageDiv.classList.remove("thinking");
+      chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
+    // ✅ If backend/Gemini returned an error
+    if (!response.ok) {
+      const errMsg = data?.error?.message || data?.message || "API error";
+      throw new Error(errMsg);
+    }
+
+    // ✅ Normal Gemini success response
+    const apiResponseText =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+
+    messageElement.innerText = apiResponseText;
+
+    chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
+  } catch (error) {
+    console.log(error);
+    messageElement.innerText = error.message || "Something went wrong.";
+    messageElement.style.color = "red";
+  } finally {
+    userData.file = {};
+    incomingMessageDiv.classList.remove("thinking");
+    chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
+  }
+};
+
 
 
     if (!response.ok) throw new Error(data.error?.message || "API error");
