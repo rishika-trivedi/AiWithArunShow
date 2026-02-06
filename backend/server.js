@@ -78,6 +78,19 @@ function isOnTopic(prompt) {
   return false;
 }
 
+// Return a response that matches Gemini's shape (so your frontend never shows "No response")
+function wrapTextAsGemini(text) {
+  return {
+    candidates: [
+      {
+        content: {
+          parts: [{ text }],
+        },
+      },
+    ],
+  };
+}
+
 // Much more flexible detection for "latest episode" questions
 function isLatestEpisodeQuestion(prompt) {
   const t = (prompt || "").toLowerCase();
@@ -100,17 +113,18 @@ function isLatestEpisodeQuestion(prompt) {
     t.includes("show") ||
     t.includes("podcast");
 
-  // Common exact phrases
   const exact =
     t.includes("what is the latest episode") ||
     t.includes("what's the latest episode") ||
     t.includes("whats the latest episode") ||
+    t.includes("what is the most recent episode") ||
+    t.includes("what's the most recent episode") ||
+    t.includes("whats the most recent episode") ||
     t.includes("latest episode") ||
     t.includes("newest episode") ||
     t.includes("latest video") ||
     t.includes("newest video");
 
-  // If they ask "what is the latest" and mention episode/video/show etc.
   return exact || (wantsLatest && episodeWords);
 }
 
@@ -159,25 +173,23 @@ app.post("/api/gemini", async (req, res) => {
       const latest = await getLatestYouTubeVideo();
 
       if (!latest) {
-        return res.json({
-          guarded: true,
-          message: "I couldn’t find the latest episode right now. Try again shortly.",
-        });
+        return res.json(
+          wrapTextAsGemini("I couldn’t find the latest episode right now. Try again shortly.")
+        );
       }
 
-      return res.json({
-        guarded: true,
-        message:
-          `🎙️ Latest AI With Arun Show episode:\n\n` +
-          `• Title: ${latest.title}\n` +
-          `• Published: ${latest.published}\n` +
-          `• Watch here: ${latest.link}`,
-      });
+      const msg =
+        `🎙️ Latest AI With Arun Show episode:\n\n` +
+        `• Title: ${latest.title}\n` +
+        `• Published: ${latest.published}\n` +
+        `• Watch here: ${latest.link}`;
+
+      return res.json(wrapTextAsGemini(msg));
     }
 
-    // Guardrails
+    // Guardrails (also return Gemini-shaped message so frontend displays it)
     if (!isOnTopic(userPrompt)) {
-      return res.json({ guarded: true, message: OFF_TOPIC_MESSAGE });
+      return res.json(wrapTextAsGemini(OFF_TOPIC_MESSAGE));
     }
 
     // Gemini API call
