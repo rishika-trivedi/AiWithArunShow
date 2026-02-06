@@ -8,81 +8,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// =====================
+// MIDDLEWARE
+// =====================
 app.use(express.json());
 app.use(express.static("public"));
 
-const ALLOWLIST = [
-  "ai with arun",
-  "aiwitharunshow",
-  "aiwas",
-  "arun",
-  "the show",
-  "episode",
-  "youtube",
-  "podcast",
-  "channel",
-  "guest",
-  "interview",
-  "newsletter",
-  "website",
-  "site",
-  "contact",
-  "services",
-  "consulting",
-  "speaking",
-  "ai",
-  "machine learning",
-  "generative ai",
-  "llm",
-  "chatbot",
-  "prompt",
-  "hi",
-  "hello",
-  "how are you",
-  "what is the ai with arun show",
-];
-
-const BLOCKLIST = [
-  "homework",
-  "geometry",
-  "algebra",
-  "physics",
-  "chemistry",
-  "biology",
-  "history",
-  "english essay",
-  "relationship",
-  "dating",
-  "medical",
-  "diagnosis",
-  "legal advice",
-  "song lyrics",
-];
-
-function isOnTopic(prompt) {
-  const text = (prompt || "").toLowerCase().trim();
-  if (!text) return false;
-  if (BLOCKLIST.some((w) => text.includes(w))) return false;
-  if (ALLOWLIST.some((w) => text.includes(w))) return true;
-  return false;
-}
-
-const OFF_TOPIC_MESSAGE =
-  "I can only answer questions about the AI With Arun Show (episodes, topics, guests, Arun’s AI work, or this website). What would you like to know about the show?";
-
-const SYSTEM_INSTRUCTION = `
-You are the assistant for the "AI With Arun Show" website.
-You must ONLY answer questions related to:
-- AI With Arun Show (episodes, topics, guests, formats)
-- Arun's AI work as presented on the site
-- The website itself (navigation, services, contact)
-
-If the user asks anything unrelated, do not answer it.
-Instead, politely say you can only help with AI With Arun Show questions and ask them to rephrase.
-Keep responses friendly and concise.
-`.trim();
-
-// CORS (now supports GET too)
+// CORS (frontend + backend safe)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -91,15 +23,140 @@ app.use((req, res, next) => {
   next();
 });
 
-// Gemini route
+// =====================
+// CONFIG
+// =====================
+const CHANNEL_ID = "UCnOpIzLQgKq0yQGThlNCsqA";
+
+const ALLOWLIST = [
+  "ai with arun",
+  "aiwitharunshow",
+  "aiwas",
+  "arun",
+  "episode",
+  "latest",
+  "youtube",
+  "podcast",
+  "channel",
+  "guest",
+  "interview",
+  "newsletter",
+  "website",
+  "services",
+  "consulting",
+  "ai",
+  "machine learning",
+  "generative ai",
+  "chatbot",
+  "hi",
+  "hello",
+  "what is the ai with arun show",
+];
+
+const BLOCKLIST = [
+  "homework",
+  "algebra",
+  "geometry",
+  "physics",
+  "chemistry",
+  "biology",
+  "history",
+  "dating",
+  "medical",
+  "diagnosis",
+  "legal advice",
+  "song lyrics",
+];
+
+// =====================
+// HELPERS
+// =====================
+function isOnTopic(prompt) {
+  const text = (prompt || "").toLowerCase();
+  if (!text) return false;
+  if (BLOCKLIST.some((w) => text.includes(w))) return false;
+  if (ALLOWLIST.some((w) => text.includes(w))) return true;
+  return false;
+}
+
+function isLatestEpisodeQuestion(prompt) {
+  const t = (prompt || "").toLowerCase();
+  return (
+    t.includes("latest episode") ||
+    t.includes("newest episode") ||
+    (t.includes("most recent") && t.includes("episode")) ||
+    t.includes("latest video") ||
+    t.includes("newest video")
+  );
+}
+
+async function getLatestYouTubeVideo() {
+  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`;
+  const r = await fetch(rssUrl);
+  const xml = await r.text();
+
+  const parsed = await xml2js.parseStringPromise(xml);
+  const entry = parsed.feed.entry?.[0];
+  if (!entry) return null;
+
+  return {
+    title: entry.title?.[0] || "",
+    published: entry.published?.[0] || "",
+    link: entry.link?.[0]?.$?.href || "",
+  };
+}
+
+const OFF_TOPIC_MESSAGE =
+  "I can only answer questions about the AI With Arun Show (episodes, topics, guests, Arun’s AI work, or this website). What would you like to know about the show?";
+
+const SYSTEM_INSTRUCTION = `
+You are the assistant for the AI With Arun Show website.
+You must ONLY answer questions related to:
+- AI With Arun Show episodes and topics
+- Guests and interviews
+- Arun’s AI work
+- The website itself
+
+If the user asks anything unrelated, politely refuse and redirect.
+Keep responses friendly and concise.
+`.trim();
+
+// =====================
+// ROUTES
+// =====================
+
+// GEMINI CHATBOT
 app.post("/api/gemini", async (req, res) => {
   try {
     const userPrompt = req.body.prompt;
 
+    // 🔥 Special case: latest episode
+    if (isLatestEpisodeQuestion(userPrompt)) {
+      const latest = await getLatestYouTubeVideo();
+
+      if (!latest) {
+        return res.json({
+          guarded: true,
+          message: "I couldn’t find the latest episode right now. Try again shortly.",
+        });
+      }
+
+      return res.json({
+        guarded: true,
+        message:
+          `🎙️ Latest AI With Arun Show episode:\n\n` +
+          `• Title: ${latest.title}\n` +
+          `• Published: ${latest.published}\n` +
+          `• Watch here: ${latest.link}`,
+      });
+    }
+
+    // Guardrails
     if (!isOnTopic(userPrompt)) {
       return res.json({ guarded: true, message: OFF_TOPIC_MESSAGE });
     }
 
+    // Gemini API call
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -119,7 +176,7 @@ app.post("/api/gemini", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      console.log("Gemini error:", JSON.stringify(data, null, 2));
+      console.error("Gemini error:", data);
       return res.status(response.status).json(data);
     }
 
@@ -130,12 +187,10 @@ app.post("/api/gemini", async (req, res) => {
   }
 });
 
-// YouTube RSS route
+// YOUTUBE FEED (for frontend use)
 app.get("/api/youtube/latest", async (req, res) => {
   try {
-    const channelId = "UCnOpIzLQgKq0yQGThlNCsqA";
-    const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-
+    const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`;
     const r = await fetch(rssUrl);
     const xml = await r.text();
 
@@ -144,10 +199,10 @@ app.get("/api/youtube/latest", async (req, res) => {
 
     const videos = entries.slice(0, 6).map((e) => ({
       title: e.title?.[0] || "",
-      videoId: e["yt:videoId"]?.[0] || "",
-      link: e.link?.[0]?.$?.href || "",
       published: e.published?.[0] || "",
-      thumbnail: e["media:group"]?.[0]?.["media:thumbnail"]?.[0]?.$?.url || "",
+      link: e.link?.[0]?.$?.href || "",
+      thumbnail:
+        e["media:group"]?.[0]?.["media:thumbnail"]?.[0]?.$?.url || "",
     }));
 
     res.json({ videos });
@@ -157,6 +212,7 @@ app.get("/api/youtube/latest", async (req, res) => {
   }
 });
 
+// =====================
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
