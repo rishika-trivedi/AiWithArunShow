@@ -39,6 +39,10 @@ const ALLOWLIST = [
   "llm",
   "chatbot",
   "prompt",
+  "hi",
+  "hello",
+  "how are you",
+  "What is the AI With Arun Show",
 ];
 
 const BLOCKLIST = [
@@ -87,6 +91,15 @@ Instead, politely say you can only help with AI With Arun Show questions and ask
 Keep responses friendly and concise.
 `.trim();
 
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
+
 app.post("/api/gemini", async (req, res) => {
   try {
     const userPrompt = req.body.prompt;
@@ -101,7 +114,7 @@ app.post("/api/gemini", async (req, res) => {
 
     // 2) Call Gemini with a strong instruction to stay on-topic
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
