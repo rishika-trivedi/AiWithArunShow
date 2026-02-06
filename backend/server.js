@@ -13,7 +13,6 @@ app.use(express.static("public"));
 /**
  * Guardrails config
  * - Allowlist: phrases that indicate the user is asking about AI With Arun Show / site.
- * - Blocklist: obvious off-topic categories (customize anytime).
  */
 const ALLOWLIST = [
   "ai with arun",

@@ -55,112 +55,48 @@ const createMessageElemnt = (content, ...classes) => {
   return div;
 };
 
-// GENERATE BOT RESPONSE (CALL BACKEND)
+const API_BASE = "https://aiwitharunshow.onrender.com";
+
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
-  chatHistory.push({
-    role: "user",
-    parts: [
-      { text: userData.message },
-      ...(userData.file.data ? [{ inline_data: userData.file }] : []),
-    ],
-  });
-
   try {
-    // const response = await fetch("/api/gemini", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ prompt: userData.message }),
-    // });
-
-    const response = await fetch("/api/gemini", { // Use a relative path
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ prompt: userData.message }),
-    });
-
-    // GENERATE BOT RESPONSE (CALL BACKEND)
-const generateBotResponse = async (incomingMessageDiv) => {
-  const messageElement = incomingMessageDiv.querySelector(".message-text");
-
-  // Save user message into history (optional, you aren't sending history right now)
-  chatHistory.push({
-    role: "user",
-    parts: [
-      { text: userData.message },
-      ...(userData.file.data ? [{ inline_data: userData.file }] : []),
-    ],
-  });
-
-  try {
-    const response = await fetch("/api/gemini", {
+    const response = await fetch(`${API_BASE}/api/gemini`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: userData.message }),
     });
 
-    // ✅ IMPORTANT: actually parse the JSON into "data"
     const data = await response.json().catch(() => null);
 
-    // ✅ If backend guardrails blocked it
-    if (data?.guarded) {
-      messageElement.innerText = data.message;
-      incomingMessageDiv.classList.remove("thinking");
-      chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
-      return;
-    }
-
-    // ✅ If backend/Gemini returned an error
     if (!response.ok) {
-      const errMsg = data?.error?.message || data?.message || "API error";
-      throw new Error(errMsg);
+      const msg =
+        data?.error?.message || data?.message || "Backend error (not OK)";
+      throw new Error(msg);
     }
 
-    // ✅ Normal Gemini success response
     const apiResponseText =
       data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
 
     messageElement.innerText = apiResponseText;
-
-    chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
-  } catch (error) {
-    console.log(error);
-    messageElement.innerText = error.message || "Something went wrong.";
+  } catch (err) {
+    console.error(err);
+    messageElement.innerText = err?.message || "Chatbot failed (check console).";
     messageElement.style.color = "red";
   } finally {
-    userData.file = {};
     incomingMessageDiv.classList.remove("thinking");
     chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
   }
 };
 
-
-
-    if (!response.ok) throw new Error(data.error?.message || "API error");
-
-    const apiResponseText =
-      data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
-
-    messageElement.innerText = apiResponseText;
-
-    chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
-  } catch (error) {
-    console.log(error);
-    messageElement.innerText = error.message;
-    messageElement.style.color = "red";
-  } finally {
-    userData.file = {};
-    incomingMessageDiv.classList.remove("thinking");
-    chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
-  }
-};
 
 // HANDLE OUTGOING MESSAGE
 const handleOutgoingMessage = (e) => {
   e.preventDefault();
   userData.message = messageInput.value.trim();
+  if (!userData.message) return;
   messageInput.value = "";
+
   fileUploudWrapper.classList.remove("file-uplouded");
   messageInput.dispatchEvent(new Event("input"));
 
