@@ -1,5 +1,5 @@
 {
-  "name": "ai-chatbot",
+  "name": "aiwitharun-backend",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
@@ -9,6 +9,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "node-fetch": "^3.3.2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "xml2js": "^0.6.2"
   }
 }
