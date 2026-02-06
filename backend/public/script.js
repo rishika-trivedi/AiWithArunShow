@@ -76,7 +76,7 @@ const generateBotResponse = async (incomingMessageDiv) => {
     }
 
     const apiResponseText =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to answer this question.";
 
     messageElement.innerText = apiResponseText;
   } catch (err) {
