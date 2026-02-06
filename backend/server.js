@@ -43,7 +43,6 @@ const ALLOWLIST = [
   "newsletter",
   "website",
   "services",
-  "consulting",
   "ai",
   "machine learning",
   "generative ai",
@@ -79,15 +78,40 @@ function isOnTopic(prompt) {
   return false;
 }
 
+// Much more flexible detection for "latest episode" questions
 function isLatestEpisodeQuestion(prompt) {
   const t = (prompt || "").toLowerCase();
-  return (
+
+  const wantsLatest =
+    t.includes("latest") ||
+    t.includes("newest") ||
+    t.includes("most recent") ||
+    (t.includes("recent") && !t.includes("recently")) ||
+    t.includes("last upload") ||
+    t.includes("last video") ||
+    t.includes("new upload") ||
+    t.includes("new video");
+
+  const episodeWords =
+    t.includes("episode") ||
+    t.includes("ep") ||
+    t.includes("video") ||
+    t.includes("upload") ||
+    t.includes("show") ||
+    t.includes("podcast");
+
+  // Common exact phrases
+  const exact =
+    t.includes("what is the latest episode") ||
+    t.includes("what's the latest episode") ||
+    t.includes("whats the latest episode") ||
     t.includes("latest episode") ||
     t.includes("newest episode") ||
-    (t.includes("most recent") && t.includes("episode")) ||
     t.includes("latest video") ||
-    t.includes("newest video")
-  );
+    t.includes("newest video");
+
+  // If they ask "what is the latest" and mention episode/video/show etc.
+  return exact || (wantsLatest && episodeWords);
 }
 
 async function getLatestYouTubeVideo() {
@@ -128,9 +152,9 @@ Keep responses friendly and concise.
 // GEMINI CHATBOT
 app.post("/api/gemini", async (req, res) => {
   try {
-    const userPrompt = req.body.prompt;
+    const userPrompt = req.body.prompt || "";
 
-    // 🔥 Special case: latest episode
+    // 🔥 Special case: "latest episode" -> ALWAYS return real YouTube info (no Gemini)
     if (isLatestEpisodeQuestion(userPrompt)) {
       const latest = await getLatestYouTubeVideo();
 
@@ -201,8 +225,7 @@ app.get("/api/youtube/latest", async (req, res) => {
       title: e.title?.[0] || "",
       published: e.published?.[0] || "",
       link: e.link?.[0]?.$?.href || "",
-      thumbnail:
-        e["media:group"]?.[0]?.["media:thumbnail"]?.[0]?.$?.url || "",
+      thumbnail: e["media:group"]?.[0]?.["media:thumbnail"]?.[0]?.$?.url || "",
     }));
 
     res.json({ videos });
