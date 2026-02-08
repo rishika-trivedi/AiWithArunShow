@@ -7,9 +7,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// =====================
-// MIDDLEWARE
-// =====================
 app.use(express.json());
 app.use(express.static("public"));
 
@@ -21,18 +18,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// =====================
-// ENV / CONFIG
-// =====================
+//ENV VARIABLES 
 const YT_KEY = process.env.YT_API_KEY;
 const CHANNEL_ID = process.env.YT_CHANNEL_ID;
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
-let lastEpisodeContext = null; // { title, published, link, description, videoId, updatedAt }
+let lastEpisodeContext = null; 
 
-// =====================
-// HELPERS
-// =====================
+//Helpers 
 function wrapTextAsGemini(text) {
   return {
     candidates: [
@@ -76,11 +69,11 @@ function isEpisodeAboutQuestion(prompt = "") {
   );
 }
 
-// Fetch latest video + FULL description (real)
+// Fetch latest video + FULL description 
 async function getLatestEpisodeFromYouTube() {
   if (!YT_KEY || !CHANNEL_ID) return null;
 
-  // 1) Find latest videoId
+  // Find latest videoId
   const searchUrl =
     `https://www.googleapis.com/youtube/v3/search?` +
     `part=snippet&channelId=${CHANNEL_ID}&order=date&maxResults=1&type=video&key=${YT_KEY}`;
@@ -92,7 +85,7 @@ async function getLatestEpisodeFromYouTube() {
   const videoId = data1.items[0]?.id?.videoId;
   if (!videoId) return null;
 
-  // 2) Get full snippet (description, title, publishedAt) from videos endpoint
+  //Get full snippet (description, title, publishedAt) from videos endpoint
   const videoUrl =
     `https://www.googleapis.com/youtube/v3/videos?` +
     `part=snippet&id=${videoId}&key=${YT_KEY}`;
@@ -112,11 +105,8 @@ async function getLatestEpisodeFromYouTube() {
   };
 }
 
-// =====================
-// ROUTES
-// =====================
 
-// Debug route (optional but useful)
+// Debug route
 app.get("/api/debug/youtube", async (req, res) => {
   const envStatus = {
     GEMINI_API_KEY_set: !!process.env.GEMINI_API_KEY,
@@ -152,7 +142,7 @@ app.post("/api/gemini", async (req, res) => {
   try {
     const userPrompt = (req.body.prompt || "").trim();
 
-    // A) Latest episode (always real)
+    //Latest episode (always real)
     if (isLatestEpisodeQuestion(userPrompt)) {
       const latest = await getLatestEpisodeFromYouTube();
 
@@ -172,7 +162,7 @@ app.post("/api/gemini", async (req, res) => {
       return res.json(wrapTextAsGemini(msg));
     }
 
-    // B) “What was this episode about?” (grounded in the real description)
+    // “What was this episode about?” (grounded in the real description)
     if (isEpisodeAboutQuestion(userPrompt)) {
       if (!lastEpisodeContext) {
         return res.json(wrapTextAsGemini('Ask “What is the latest episode?” first.'));
@@ -232,7 +222,7 @@ Return:
       return res.json(data);
     }
 
-    // C) Everything else -> normal Gemini, but gently scoped
+    // Everything else -> normal Gemini, but gently scoped
     const system = `
 You are the assistant for the AI With Arun Show website.
 Be accurate and do not invent episode details.
