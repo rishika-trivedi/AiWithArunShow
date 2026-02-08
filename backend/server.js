@@ -221,6 +221,70 @@ Return:
   }
 });
 
+app.get("/api/debug/youtube", async (req, res) => {
+  try {
+    const channelId = process.env.YT_CHANNEL_ID;
+    const apiKey = process.env.YT_API_KEY;
+
+    // show whether env vars exist (safe: only shows first 4 chars of key)
+    const envStatus = {
+      YT_CHANNEL_ID_set: !!channelId,
+      YT_CHANNEL_ID_value: channelId || null,
+      YT_API_KEY_set: !!apiKey,
+      YT_API_KEY_preview: apiKey ? apiKey.slice(0, 4) + "..." : null,
+    };
+
+    if (!channelId || !apiKey) {
+      return res.status(400).json({
+        ok: false,
+        step: "env",
+        envStatus,
+        error: "Missing YT_CHANNEL_ID or YT_API_KEY on Render",
+      });
+    }
+
+    const url =
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}` +
+      `&order=date&maxResults=1&type=video&key=${apiKey}`;
+
+    const r = await fetch(url);
+    const data = await r.json();
+
+    if (!r.ok) {
+      return res.status(r.status).json({
+        ok: false,
+        step: "youtube_api",
+        envStatus,
+        youtubeStatus: r.status,
+        youtubeError: data?.error || data,
+      });
+    }
+
+    if (!data.items?.length) {
+      return res.json({
+        ok: false,
+        step: "no_items",
+        envStatus,
+        note: "YouTube API returned 0 videos for this channelId",
+        raw: data,
+      });
+    }
+
+    const item = data.items[0];
+    return res.json({
+      ok: true,
+      envStatus,
+      latest: {
+        title: item.snippet?.title,
+        publishedAt: item.snippet?.publishedAt,
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, step: "exception", error: String(e) });
+  }
+});
+
+
 // =====================
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
