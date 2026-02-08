@@ -5,6 +5,11 @@ import xml2js from "xml2js";
 
 dotenv.config();
 
+console.log("BOOT ENV CHECK:", {
+  hasYT: !!process.env.YT_API_KEY,
+  hasChan: !!process.env.YT_CHANNEL_ID
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
