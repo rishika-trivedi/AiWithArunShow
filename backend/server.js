@@ -23,10 +23,10 @@ app.use((req, res, next) => {
 });
 
 // =====================
-// CONFIG
+// CONFIG (✅ FIXED TO MATCH RENDER)
 // =====================
-const CHANNEL_ID = "UCnOpIzLQgKq0yQGThlNCsqA";
-const YT_KEY = process.env.YOUTUBE_API_KEY;
+const CHANNEL_ID = process.env.YT_CHANNEL_ID; // ✅ was hard-coded before
+const YT_KEY = process.env.YT_API_KEY;
 
 let lastEpisodeContext = null;
 // { title, published, link, description, updatedAt }
@@ -50,7 +50,11 @@ Keep responses concise and accurate.
 function wrapTextAsGemini(text) {
   return {
     candidates: [
-      { content: { parts: [{ text }] } }
+      {
+        content: {
+          parts: [{ text }],
+        },
+      },
     ],
   };
 }
@@ -88,7 +92,7 @@ function isEpisodeAboutQuestion(prompt = "") {
 // YOUTUBE DATA (REAL DESCRIPTION)
 // =====================
 async function getLatestEpisodeFromYouTube() {
-  if (!YT_KEY) return null;
+  if (!YT_KEY || !CHANNEL_ID) return null;
 
   const searchUrl =
     `https://www.googleapis.com/youtube/v3/search?` +
@@ -96,6 +100,7 @@ async function getLatestEpisodeFromYouTube() {
 
   const r = await fetch(searchUrl);
   const data = await r.json();
+
   if (!r.ok || !data.items?.length) return null;
 
   const item = data.items[0];
@@ -131,21 +136,19 @@ app.post("/api/gemini", async (req, res) => {
       return res.json(
         wrapTextAsGemini(
           `🎙️ Latest AI With Arun Show episode:\n\n` +
-          `• Title: ${latest.title}\n` +
-          `• Published: ${latest.published}\n` +
-          `• Watch: ${latest.link}\n\n` +
-          `Ask: “What was this episode about?”`
+            `• Title: ${latest.title}\n` +
+            `• Published: ${latest.published}\n` +
+            `• Watch: ${latest.link}\n\n` +
+            `Ask: “What was this episode about?”`
         )
       );
     }
 
-    // 2️⃣ Episode summary (NO hallucinations)
+    // 2️⃣ Episode summary (grounded, no hallucinations)
     if (isEpisodeAboutQuestion(userPrompt)) {
       if (!lastEpisodeContext) {
         return res.json(
-          wrapTextAsGemini(
-            'Ask “What is the latest episode?” first.'
-          )
+          wrapTextAsGemini('Ask “What is the latest episode?” first.')
         );
       }
 
@@ -192,7 +195,7 @@ Return:
       return res.json(data);
     }
 
-    // 3️⃣ Normal chatbot (on-topic)
+    // 3️⃣ Normal chatbot
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -211,7 +214,6 @@ Return:
 
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
-
     res.json(data);
   } catch (err) {
     console.error(err);
