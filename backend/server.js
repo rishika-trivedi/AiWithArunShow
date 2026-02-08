@@ -14,7 +14,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static("public"));
 
-// CORS (frontend + backend safe)
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -27,122 +26,10 @@ app.use((req, res, next) => {
 // CONFIG
 // =====================
 const CHANNEL_ID = "UCnOpIzLQgKq0yQGThlNCsqA";
+const YT_KEY = process.env.YOUTUBE_API_KEY;
 
-const ALLOWLIST = [
-  "ai with arun",
-  "aiwitharunshow",
-  "aiwas",
-  "arun",
-  "episode",
-  "latest",
-  "youtube",
-  "podcast",
-  "channel",
-  "guest",
-  "interview",
-  "newsletter",
-  "website",
-  "services",
-  "ai",
-  "machine learning",
-  "generative ai",
-  "chatbot",
-  "hi",
-  "hello",
-  "what is the ai with arun show",
-];
-
-const BLOCKLIST = [
-  "homework",
-  "algebra",
-  "geometry",
-  "physics",
-  "chemistry",
-  "biology",
-  "history",
-  "dating",
-  "medical",
-  "diagnosis",
-  "legal advice",
-  "song lyrics",
-];
-
-// =====================
-// HELPERS
-// =====================
-function isOnTopic(prompt) {
-  const text = (prompt || "").toLowerCase();
-  if (!text) return false;
-  if (BLOCKLIST.some((w) => text.includes(w))) return false;
-  if (ALLOWLIST.some((w) => text.includes(w))) return true;
-  return false;
-}
-
-// Return a response that matches Gemini's shape (so your frontend never shows "No response")
-function wrapTextAsGemini(text) {
-  return {
-    candidates: [
-      {
-        content: {
-          parts: [{ text }],
-        },
-      },
-    ],
-  };
-}
-
-// Much more flexible detection for "latest episode" questions
-function isLatestEpisodeQuestion(prompt) {
-  const t = (prompt || "").toLowerCase();
-
-  const wantsLatest =
-    t.includes("latest") ||
-    t.includes("newest") ||
-    t.includes("most recent") ||
-    (t.includes("recent") && !t.includes("recently")) ||
-    t.includes("last upload") ||
-    t.includes("last video") ||
-    t.includes("new upload") ||
-    t.includes("new video");
-
-  const episodeWords =
-    t.includes("episode") ||
-    t.includes("ep") ||
-    t.includes("video") ||
-    t.includes("upload") ||
-    t.includes("show") ||
-    t.includes("podcast");
-
-  const exact =
-    t.includes("what is the latest episode") ||
-    t.includes("what's the latest episode") ||
-    t.includes("whats the latest episode") ||
-    t.includes("what is the most recent episode") ||
-    t.includes("what's the most recent episode") ||
-    t.includes("whats the most recent episode") ||
-    t.includes("latest episode") ||
-    t.includes("newest episode") ||
-    t.includes("latest video") ||
-    t.includes("newest video");
-
-  return exact || (wantsLatest && episodeWords);
-}
-
-async function getLatestYouTubeVideo() {
-  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`;
-  const r = await fetch(rssUrl);
-  const xml = await r.text();
-
-  const parsed = await xml2js.parseStringPromise(xml);
-  const entry = parsed.feed.entry?.[0];
-  if (!entry) return null;
-
-  return {
-    title: entry.title?.[0] || "",
-    published: entry.published?.[0] || "",
-    link: entry.link?.[0]?.$?.href || "",
-  };
-}
+let lastEpisodeContext = null;
+// { title, published, link, description, updatedAt }
 
 const OFF_TOPIC_MESSAGE =
   "I can only answer questions about the AI With Arun Show (episodes, topics, guests, Arun’s AI work, or this website). What would you like to know about the show?";
@@ -154,45 +41,158 @@ You must ONLY answer questions related to:
 - Guests and interviews
 - Arun’s AI work
 - The website itself
-
-If the user asks anything unrelated, politely refuse and redirect.
-Keep responses friendly and concise.
+Keep responses concise and accurate.
 `.trim();
+
+// =====================
+// HELPERS
+// =====================
+function wrapTextAsGemini(text) {
+  return {
+    candidates: [
+      { content: { parts: [{ text }] } }
+    ],
+  };
+}
+
+function isLatestEpisodeQuestion(prompt = "") {
+  const t = prompt.toLowerCase();
+  return (
+    (t.includes("latest") ||
+      t.includes("newest") ||
+      t.includes("most recent") ||
+      t.includes("last")) &&
+    (t.includes("episode") ||
+      t.includes("episde") ||
+      t.includes("video") ||
+      t.includes("show") ||
+      t.includes("podcast"))
+  );
+}
+
+function isEpisodeAboutQuestion(prompt = "") {
+  const t = prompt.toLowerCase();
+  return (
+    t.includes("what was this episode about") ||
+    t.includes("what is this episode about") ||
+    t.includes("what was it about") ||
+    t.includes("what is it about") ||
+    t.includes("tell me about this episode") ||
+    t.includes("summary") ||
+    t.includes("summarize") ||
+    t.includes("recap")
+  );
+}
+
+// =====================
+// YOUTUBE DATA (REAL DESCRIPTION)
+// =====================
+async function getLatestEpisodeFromYouTube() {
+  if (!YT_KEY) return null;
+
+  const searchUrl =
+    `https://www.googleapis.com/youtube/v3/search?` +
+    `part=snippet&channelId=${CHANNEL_ID}&order=date&maxResults=1&type=video&key=${YT_KEY}`;
+
+  const r = await fetch(searchUrl);
+  const data = await r.json();
+  if (!r.ok || !data.items?.length) return null;
+
+  const item = data.items[0];
+  const videoId = item.id.videoId;
+
+  return {
+    title: item.snippet.title,
+    published: item.snippet.publishedAt,
+    link: `https://www.youtube.com/watch?v=${videoId}`,
+    description: item.snippet.description || "",
+  };
+}
 
 // =====================
 // ROUTES
 // =====================
-
-// GEMINI CHATBOT
 app.post("/api/gemini", async (req, res) => {
   try {
     const userPrompt = req.body.prompt || "";
 
-    // 🔥 Special case: "latest episode" -> ALWAYS return real YouTube info (no Gemini)
+    // 1️⃣ Latest episode (truth source)
     if (isLatestEpisodeQuestion(userPrompt)) {
-      const latest = await getLatestYouTubeVideo();
+      const latest = await getLatestEpisodeFromYouTube();
 
       if (!latest) {
         return res.json(
-          wrapTextAsGemini("I couldn’t find the latest episode right now. Try again shortly.")
+          wrapTextAsGemini("I couldn’t fetch the latest episode right now.")
         );
       }
 
-      const msg =
-        `🎙️ Latest AI With Arun Show episode:\n\n` +
-        `• Title: ${latest.title}\n` +
-        `• Published: ${latest.published}\n` +
-        `• Watch here: ${latest.link}`;
+      lastEpisodeContext = { ...latest, updatedAt: Date.now() };
 
-      return res.json(wrapTextAsGemini(msg));
+      return res.json(
+        wrapTextAsGemini(
+          `🎙️ Latest AI With Arun Show episode:\n\n` +
+          `• Title: ${latest.title}\n` +
+          `• Published: ${latest.published}\n` +
+          `• Watch: ${latest.link}\n\n` +
+          `Ask: “What was this episode about?”`
+        )
+      );
     }
 
-    // Guardrails (also return Gemini-shaped message so frontend displays it)
-    if (!isOnTopic(userPrompt)) {
-      return res.json(wrapTextAsGemini(OFF_TOPIC_MESSAGE));
+    // 2️⃣ Episode summary (NO hallucinations)
+    if (isEpisodeAboutQuestion(userPrompt)) {
+      if (!lastEpisodeContext) {
+        return res.json(
+          wrapTextAsGemini(
+            'Ask “What is the latest episode?” first.'
+          )
+        );
+      }
+
+      const { title, published, link, description } = lastEpisodeContext;
+
+      if (!description || description.length < 40) {
+        return res.json(
+          wrapTextAsGemini(
+            "I don’t have enough description text to summarize accurately."
+          )
+        );
+      }
+
+      const summaryPrompt = `
+Summarize the episode using ONLY the description below.
+Do NOT add facts not present.
+If something is unknown, say “Not specified in the description.”
+
+Title: ${title}
+Published: ${published}
+Link: ${link}
+
+Description:
+${description}
+
+Return:
+- 3–5 sentence summary
+- 3 bullet key takeaways
+`.trim();
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: summaryPrompt }] }],
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) return res.status(response.status).json(data);
+      return res.json(data);
     }
 
-    // Gemini API call
+    // 3️⃣ Normal chatbot (on-topic)
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -210,40 +210,12 @@ app.post("/api/gemini", async (req, res) => {
     );
 
     const data = await response.json();
-
-    if (!response.ok) {
-      console.error("Gemini error:", data);
-      return res.status(response.status).json(data);
-    }
+    if (!response.ok) return res.status(response.status).json(data);
 
     res.json(data);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: { message: String(err) } });
-  }
-});
-
-// YOUTUBE FEED (for frontend use)
-app.get("/api/youtube/latest", async (req, res) => {
-  try {
-    const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`;
-    const r = await fetch(rssUrl);
-    const xml = await r.text();
-
-    const parsed = await xml2js.parseStringPromise(xml);
-    const entries = parsed.feed.entry || [];
-
-    const videos = entries.slice(0, 6).map((e) => ({
-      title: e.title?.[0] || "",
-      published: e.published?.[0] || "",
-      link: e.link?.[0]?.$?.href || "",
-      thumbnail: e["media:group"]?.[0]?.["media:thumbnail"]?.[0]?.$?.url || "",
-    }));
-
-    res.json({ videos });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch YouTube feed" });
   }
 });
 
