@@ -62,6 +62,32 @@ function safePreviewKey(k = "") {
 }
 
 // --------------------
+// STOPLIST for topic extraction (FIXES "the show")
+// --------------------
+const STOP_TOPICS = new Set([
+  "the show",
+  "this show",
+  "your show",
+  "show",
+  "the podcast",
+  "podcast",
+  "the episode",
+  "this episode",
+  "episode",
+  "episodes",
+  "video",
+  "videos",
+  "latest",
+  "newest",
+  "most recent",
+  "recent",
+  "last",
+  "upload",
+  "uploads",
+  "channel",
+]);
+
+// --------------------
 // Intent detectors
 // --------------------
 function isLatestEpisodeQuestion(prompt = "") {
@@ -106,22 +132,38 @@ function isPopularVideosQuestion(prompt = "") {
   ]);
 }
 
+// ✅ REPLACED extractTopic() so it won't treat "the show" as a topic
 function extractTopic(prompt = "") {
   const t = normalize(prompt);
 
+  // patterns: "... about robotics", "videos about education", "episodes on politics"
   const match =
     t.match(/(about|on|related to|regarding|around)\s+([a-z0-9 \-]{2,50})$/i) ||
-    t.match(/videos?\s+(about|on)\s+([a-z0-9 \-]{2,50})/i) ||
-    t.match(/episodes?\s+(about|on)\s+([a-z0-9 \-]{2,50})/i);
+    t.match(/(videos?|episodes?|guests?)\s+(about|on)\s+([a-z0-9 \-]{2,50})/i);
 
-  if (match && match[2]) return match[2].trim();
+  let topic = null;
 
-  const quick = t.match(
-    /^(robotics|education|politics|ethics|healthcare|data|security|cyber|startups|saas|ml|ai)\s+(videos?|episodes?)$/i
-  );
-  if (quick && quick[1]) return quick[1].trim();
+  if (match) {
+    // match[3] is the topic for "(videos|episodes) about X"
+    // match[2] is the topic for "about X" at the end
+    topic = (match[3] || match[2] || "").trim();
+  }
 
-  return null;
+  // allow “robotics videos”, “education episodes”
+  if (!topic) {
+    const quick = t.match(
+      /^(robotics|education|politics|ethics|healthcare|data|security|cyber|startups|saas|ml|ai)\s+(videos?|episodes?|guests?)$/i
+    );
+    if (quick && quick[1]) topic = quick[1].trim();
+  }
+
+  if (!topic) return null;
+
+  topic = topic.replace(/^["']|["']$/g, "").trim(); // strip quotes
+  if (topic.length < 3) return null;
+  if (STOP_TOPICS.has(topic)) return null;
+
+  return topic;
 }
 
 function isTopicVideosQuestion(prompt = "") {
@@ -209,10 +251,11 @@ function extractHasPerson(prompt = "") {
 function isHasPersonQuestion(prompt = "") {
   const t = normalize(prompt);
   return (
-    (t.includes("has") && t.includes("been on")) ||
-    t.includes("was") ||
-    t.includes("on the show")
-  ) && !!extractHasPerson(prompt);
+    ((t.includes("has") && t.includes("been on")) ||
+      t.includes("was") ||
+      t.includes("on the show")) &&
+    !!extractHasPerson(prompt)
+  );
 }
 
 // --------------------
@@ -330,7 +373,6 @@ function formatVideoList(videos, header = "") {
 function extractGuestsFromText(text = "") {
   const guests = new Set();
 
-  // Only match names explicitly present; common formats used in titles/descriptions
   const patterns = [
     /\bwith\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
     /\bft\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
@@ -338,14 +380,13 @@ function extractGuestsFromText(text = "") {
     /\bfeaturing\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
     /\bguest:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
     /\binterview\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
-    /\b—\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g, // e.g., “— Joe Reis”
+    /\b—\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
   ];
 
   for (const pattern of patterns) {
     let m;
     while ((m = pattern.exec(text)) !== null) {
       const name = (m[1] || "").trim();
-      // basic sanity: avoid capturing very short single words
       if (name.split(" ").length >= 2) guests.add(name);
     }
   }
@@ -355,7 +396,7 @@ function extractGuestsFromText(text = "") {
 
 async function getGuestsFromRecentVideos(limit = 25) {
   const vids = await getRecentVideos(limit);
-  const guestToVideos = new Map(); // guestName -> [video objects]
+  const guestToVideos = new Map();
 
   for (const v of vids) {
     const found = extractGuestsFromText(`${v.title}\n${v.description}`);
@@ -365,7 +406,6 @@ async function getGuestsFromRecentVideos(limit = 25) {
     }
   }
 
-  // return guests sorted by frequency (most appearances first)
   const guestsSorted = [...guestToVideos.entries()]
     .sort((a, b) => b[1].length - a[1].length)
     .map(([name, videos]) => ({ name, count: videos.length, videos }));
@@ -489,9 +529,18 @@ app.post("/api/gemini", async (req, res) => {
       return res.json(wrapTextAsGemini(msg + `\n\nYou can also ask: “Tell me about #1” or “Summarize the top one.”`));
     }
 
-    // 3) Topic videos (real filtering)
+    // 3) Topic videos (real filtering)  ✅ fixed "the show" issue
     if (isTopicVideosQuestion(userPrompt)) {
-      const topic = extractTopic(userPrompt) || "";
+      const topic = extractTopic(userPrompt);
+
+      if (!topic) {
+        return res.json(
+          wrapTextAsGemini(
+            `I couldn’t detect a real topic from that. Try: “videos about robotics”, “videos on education”, or “videos about politics”.`
+          )
+        );
+      }
+
       const recent = await getRecentVideos(25);
       const matches = filterVideosByTopic(recent, topic).slice(0, 8);
 
@@ -569,7 +618,6 @@ app.post("/api/gemini", async (req, res) => {
         );
       }
 
-      // Keep guests that appear in at least one video where topic keyword appears in title/description
       const matchingGuests = guestsSorted
         .map((g) => {
           const vids = g.videos.filter((v) =>
@@ -628,7 +676,7 @@ app.post("/api/gemini", async (req, res) => {
       return res.json(wrapTextAsGemini(msg));
     }
 
-    // 8) Follow-up: "what was it about?" -> summarize last context safely
+    // 8) Follow-up: summarize last context safely
     if (isEpisodeAboutQuestion(userPrompt)) {
       if (!lastEpisodeContext) {
         return res.json(
