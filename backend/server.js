@@ -399,7 +399,7 @@ app.post("/api/gemini", async (req, res) => {
 
       if (!matches.length) {
         return res.json(
-          wrapTextAsGemini(`I looked at recent uploads but didn’t find matches for: "${topic}". Try a different keyword (ex: "robot", "education", "policy", "FTC", "data").`)
+          wrapTextAsGemini(`I looked at recent uploads but didn’t find matches for: "${topic}". Try a different keyword (ex: "robot", "education", "policy", "data").`)
         );
       }
 
