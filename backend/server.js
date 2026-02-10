@@ -27,10 +27,11 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY;
 // Context memory (so follow-ups work)
 let lastEpisodeContext = null;
 // {
-//   mode: "latest" | "popular" | "topic" | "person",
+//   mode: "latest" | "popular" | "topic" | "person" | "guests" | "guest_topic" | "guest_person_check",
 //   title, published, description, link, videoId,
 //   list: [{title, link, published, views, description}],
-//   query: "robotics" | "joe reis" | ...
+//   query: "robotics" | "joe reis" | ...,
+//   guests: ["Joe Reis", ...]
 //   updatedAt
 // }
 
@@ -48,7 +49,6 @@ function normalize(s = "") {
 }
 
 function formatISODate(iso = "") {
-  // Keep it simple (you can format nicer later)
   return iso ? iso : "";
 }
 
@@ -56,16 +56,20 @@ function containsAny(t, arr) {
   return arr.some((w) => t.includes(w));
 }
 
+function safePreviewKey(k = "") {
+  if (!k) return null;
+  return k.slice(0, 4) + "...";
+}
+
 // --------------------
 // Intent detectors
 // --------------------
 function isLatestEpisodeQuestion(prompt = "") {
   const t = normalize(prompt);
-  const wantsLatest =
+  return (
     containsAny(t, ["latest", "newest", "most recent", "recent", "last"]) &&
-    containsAny(t, ["episode", "video", "upload", "show", "podcast"]);
-  // also catch short versions like "latest episode?"
-  return wantsLatest;
+    containsAny(t, ["episode", "video", "upload", "show", "podcast"])
+  );
 }
 
 function isEpisodeAboutQuestion(prompt = "") {
@@ -105,8 +109,6 @@ function isPopularVideosQuestion(prompt = "") {
 function extractTopic(prompt = "") {
   const t = normalize(prompt);
 
-  // super common patterns:
-  // "videos about robotics", "episodes on education", "show me ai in politics videos"
   const match =
     t.match(/(about|on|related to|regarding|around)\s+([a-z0-9 \-]{2,50})$/i) ||
     t.match(/videos?\s+(about|on)\s+([a-z0-9 \-]{2,50})/i) ||
@@ -114,8 +116,9 @@ function extractTopic(prompt = "") {
 
   if (match && match[2]) return match[2].trim();
 
-  // also allow “robotics videos” “education episodes”
-  const quick = t.match(/^(robotics|education|politics|ethics|healthcare|data|security|cyber|startups|saas|ml|ai)\s+(videos?|episodes?)$/i);
+  const quick = t.match(
+    /^(robotics|education|politics|ethics|healthcare|data|security|cyber|startups|saas|ml|ai)\s+(videos?|episodes?)$/i
+  );
   if (quick && quick[1]) return quick[1].trim();
 
   return null;
@@ -123,22 +126,31 @@ function extractTopic(prompt = "") {
 
 function isTopicVideosQuestion(prompt = "") {
   const t = normalize(prompt);
-  // detect “videos about X” / “episodes on X” etc.
-  if (containsAny(t, ["videos about", "video about", "episodes about", "episode about", "videos on", "episodes on"])) {
+  if (
+    containsAny(t, [
+      "videos about",
+      "video about",
+      "episodes about",
+      "episode about",
+      "videos on",
+      "episodes on",
+    ])
+  ) {
     return true;
   }
-  // detect topic extraction
   return !!extractTopic(prompt);
 }
 
 function extractPerson(prompt = "") {
   const t = normalize(prompt);
 
-  // patterns:
-  // "videos with joe reis", "episodes with arun", "show me interviews with X"
   const m =
-    t.match(/(with|featuring|feat\.?|ft\.?|interview with|guest)\s+([a-z0-9 \-]{2,50})$/i) ||
-    t.match(/(with|featuring|feat\.?|ft\.?|interview with|guest)\s+([a-z0-9 \-]{2,50})/i);
+    t.match(
+      /(with|featuring|feat\.?|ft\.?|interview with|guest)\s+([a-z0-9 \-]{2,50})$/i
+    ) ||
+    t.match(
+      /(with|featuring|feat\.?|ft\.?|interview with|guest)\s+([a-z0-9 \-]{2,50})/i
+    );
 
   if (m && m[2]) return m[2].trim();
   return null;
@@ -147,9 +159,60 @@ function extractPerson(prompt = "") {
 function isPersonVideosQuestion(prompt = "") {
   const t = normalize(prompt);
   return (
-    containsAny(t, ["videos with", "episodes with", "interview with", "guest", "featuring", "feat", "ft"]) &&
-    !!extractPerson(prompt)
+    containsAny(t, [
+      "videos with",
+      "episodes with",
+      "interview with",
+      "guest",
+      "featuring",
+      "feat",
+      "ft",
+    ]) && !!extractPerson(prompt)
   );
+}
+
+// NEW: guest intents (safe mode: only names in title/description)
+function isGuestsListQuestion(prompt = "") {
+  const t = normalize(prompt);
+  return containsAny(t, [
+    "who are the guests",
+    "who were the guests",
+    "list guests",
+    "guest list",
+    "guests on the show",
+    "who has been on the show",
+    "who appeared on the show",
+    "who has been on",
+    "who was on",
+  ]);
+}
+
+// NEW: “guests about robotics / education / politics”
+function isGuestsByTopicQuestion(prompt = "") {
+  const t = normalize(prompt);
+  return (
+    containsAny(t, ["guests", "guest"]) &&
+    (containsAny(t, ["about", "on", "related to", "regarding"]) || !!extractTopic(prompt))
+  );
+}
+
+// NEW: “Has ___ been on the show?”
+function extractHasPerson(prompt = "") {
+  const t = normalize(prompt);
+  const m =
+    t.match(/has\s+([a-z0-9 \-]{2,60})\s+been on/i) ||
+    t.match(/was\s+([a-z0-9 \-]{2,60})\s+on the show/i);
+  if (m && m[1]) return m[1].trim();
+  return null;
+}
+
+function isHasPersonQuestion(prompt = "") {
+  const t = normalize(prompt);
+  return (
+    (t.includes("has") && t.includes("been on")) ||
+    t.includes("was") ||
+    t.includes("on the show")
+  ) && !!extractHasPerson(prompt);
 }
 
 // --------------------
@@ -164,7 +227,6 @@ async function ytFetchJson(url) {
 async function getLatestEpisodeFromYouTube() {
   if (!YT_KEY || !CHANNEL_ID) return null;
 
-  // newest videoId
   const searchUrl =
     `https://www.googleapis.com/youtube/v3/search?` +
     `part=snippet&channelId=${CHANNEL_ID}&order=date&maxResults=1&type=video&key=${YT_KEY}`;
@@ -175,7 +237,6 @@ async function getLatestEpisodeFromYouTube() {
   const videoId = data1.items[0]?.id?.videoId;
   if (!videoId) return null;
 
-  // full snippet
   const videoUrl =
     `https://www.googleapis.com/youtube/v3/videos?` +
     `part=snippet,statistics&id=${videoId}&key=${YT_KEY}`;
@@ -210,7 +271,6 @@ async function getRecentVideos(limit = 20) {
   const ids = data.items.map((it) => it?.id?.videoId).filter(Boolean);
   if (!ids.length) return [];
 
-  // fetch full snippets + stats for these ids
   const videoUrl =
     `https://www.googleapis.com/youtube/v3/videos?` +
     `part=snippet,statistics&id=${ids.join(",")}&maxResults=${ids.length}&key=${YT_KEY}`;
@@ -234,10 +294,8 @@ async function getRecentVideos(limit = 20) {
 }
 
 async function getPopularVideos(limit = 6) {
-  // easiest: take recent set, sort by viewCount
   const recent = await getRecentVideos(25);
   if (!recent.length) return [];
-
   const sorted = [...recent].sort((a, b) => (b.views || 0) - (a.views || 0));
   return sorted.slice(0, limit);
 }
@@ -245,32 +303,74 @@ async function getPopularVideos(limit = 6) {
 function filterVideosByTopic(videos, topic) {
   const t = normalize(topic);
   if (!t) return [];
-
-  // simple keyword match in title + description
-  return videos.filter((v) => {
-    const hay = normalize(`${v.title} ${v.description}`);
-    return hay.includes(t);
-  });
+  return videos.filter((v) => normalize(`${v.title} ${v.description}`).includes(t));
 }
 
 function filterVideosByPerson(videos, person) {
   const p = normalize(person);
   if (!p) return [];
-  return videos.filter((v) => {
-    const hay = normalize(`${v.title} ${v.description}`);
-    return hay.includes(p);
-  });
+  return videos.filter((v) => normalize(`${v.title} ${v.description}`).includes(p));
 }
 
 function formatVideoList(videos, header = "") {
   if (!videos.length) return `${header}\n\nNo matching videos found.`;
 
   const lines = videos.map((v, i) => {
-    const views = typeof v.views === "number" ? ` • ${v.views.toLocaleString()} views` : "";
+    const views =
+      typeof v.views === "number" ? ` • ${v.views.toLocaleString()} views` : "";
     return `${i + 1}) ${v.title}\n   ${formatISODate(v.published)}${views}\n   ${v.link}`;
   });
 
   return `${header}\n\n${lines.join("\n\n")}`;
+}
+
+// --------------------
+// Guest extraction (ONLY from title+description)
+// --------------------
+function extractGuestsFromText(text = "") {
+  const guests = new Set();
+
+  // Only match names explicitly present; common formats used in titles/descriptions
+  const patterns = [
+    /\bwith\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
+    /\bft\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
+    /\bfeat\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
+    /\bfeaturing\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
+    /\bguest:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
+    /\binterview\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g,
+    /\b—\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g, // e.g., “— Joe Reis”
+  ];
+
+  for (const pattern of patterns) {
+    let m;
+    while ((m = pattern.exec(text)) !== null) {
+      const name = (m[1] || "").trim();
+      // basic sanity: avoid capturing very short single words
+      if (name.split(" ").length >= 2) guests.add(name);
+    }
+  }
+
+  return [...guests];
+}
+
+async function getGuestsFromRecentVideos(limit = 25) {
+  const vids = await getRecentVideos(limit);
+  const guestToVideos = new Map(); // guestName -> [video objects]
+
+  for (const v of vids) {
+    const found = extractGuestsFromText(`${v.title}\n${v.description}`);
+    for (const g of found) {
+      if (!guestToVideos.has(g)) guestToVideos.set(g, []);
+      guestToVideos.get(g).push(v);
+    }
+  }
+
+  // return guests sorted by frequency (most appearances first)
+  const guestsSorted = [...guestToVideos.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([name, videos]) => ({ name, count: videos.length, videos }));
+
+  return { guestsSorted, vids };
 }
 
 // --------------------
@@ -332,7 +432,7 @@ app.get("/api/debug/youtube", async (req, res) => {
     YT_CHANNEL_ID_set: !!process.env.YT_CHANNEL_ID,
     YT_CHANNEL_ID_value: process.env.YT_CHANNEL_ID || null,
     YT_API_KEY_set: !!process.env.YT_API_KEY,
-    YT_API_KEY_preview: process.env.YT_API_KEY ? process.env.YT_API_KEY.slice(0, 4) + "..." : null,
+    YT_API_KEY_preview: safePreviewKey(process.env.YT_API_KEY),
   };
 
   if (!YT_KEY || !CHANNEL_ID) {
@@ -399,7 +499,9 @@ app.post("/api/gemini", async (req, res) => {
 
       if (!matches.length) {
         return res.json(
-          wrapTextAsGemini(`I looked at recent uploads but didn’t find matches for: "${topic}". Try a different keyword (ex: "robot", "education", "policy", "data").`)
+          wrapTextAsGemini(
+            `I looked at recent uploads but didn’t find matches for: "${topic}". Try a different keyword (ex: "robot", "education", "policy", "data").`
+          )
         );
       }
 
@@ -407,7 +509,7 @@ app.post("/api/gemini", async (req, res) => {
       return res.json(wrapTextAsGemini(msg + `\n\nAsk: “Tell me about #2” or “Summarize #1.”`));
     }
 
-    // 4) Person/guest videos (real filtering)
+    // 4) Person videos (real filtering)
     if (isPersonVideosQuestion(userPrompt)) {
       const person = extractPerson(userPrompt) || "";
       const recent = await getRecentVideos(25);
@@ -417,21 +519,125 @@ app.post("/api/gemini", async (req, res) => {
 
       if (!matches.length) {
         return res.json(
-          wrapTextAsGemini(`I checked recent uploads but didn’t find videos matching: "${person}". Try the full name as it appears in the title.`)
+          wrapTextAsGemini(
+            `I checked recent uploads but didn’t find videos matching: "${person}". Try the full name exactly as it appears in the title/description.`
+          )
         );
       }
 
-      const msg = formatVideoList(matches, `👤 Videos with/mentioning “${person}” (from recent uploads):`);
+      const msg = formatVideoList(matches, `👤 Videos mentioning “${person}” (from recent uploads):`);
       return res.json(wrapTextAsGemini(msg + `\n\nAsk: “Tell me about #1” or “Summarize #3.”`));
     }
 
-    // 5) Follow-up: "what was it about?" -> summarize last context safely
-    if (isEpisodeAboutQuestion(userPrompt)) {
-      if (!lastEpisodeContext) {
-        return res.json(wrapTextAsGemini('Ask “What is the latest episode?” or “What are the most popular videos?” first.'));
+    // 5) Guests list (SAFE: only from title+description)
+    if (isGuestsListQuestion(userPrompt)) {
+      const { guestsSorted } = await getGuestsFromRecentVideos(30);
+
+      if (!guestsSorted.length) {
+        return res.json(
+          wrapTextAsGemini(
+            "Guests aren’t consistently listed in titles/descriptions, so I can’t reliably name them right now. If a guest is explicitly mentioned in a title/description, I can list them."
+          )
+        );
       }
 
-      // If last context is a single episode
+      const top = guestsSorted.slice(0, 12);
+      const msg =
+        `🎤 Guests explicitly mentioned (from recent uploads):\n\n` +
+        top.map((g, i) => `${i + 1}) ${g.name} (${g.count} video${g.count === 1 ? "" : "s"})`).join("\n") +
+        `\n\nNote: This list only includes guests whose names appear in titles or descriptions.`;
+
+      lastEpisodeContext = {
+        mode: "guests",
+        guests: top.map((g) => g.name),
+        list: top.flatMap((g) => g.videos).slice(0, 20),
+        query: "guests",
+        updatedAt: Date.now(),
+      };
+
+      return res.json(wrapTextAsGemini(msg));
+    }
+
+    // 6) Guests by topic (SAFE)
+    if (isGuestsByTopicQuestion(userPrompt)) {
+      const topic = extractTopic(userPrompt) || "";
+      const { guestsSorted } = await getGuestsFromRecentVideos(35);
+
+      if (!topic) {
+        return res.json(
+          wrapTextAsGemini(`Tell me a topic, like: “guests about robotics” or “guests on education”.`)
+        );
+      }
+
+      // Keep guests that appear in at least one video where topic keyword appears in title/description
+      const matchingGuests = guestsSorted
+        .map((g) => {
+          const vids = g.videos.filter((v) =>
+            normalize(`${v.title} ${v.description}`).includes(normalize(topic))
+          );
+          return { name: g.name, count: vids.length, videos: vids };
+        })
+        .filter((g) => g.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12);
+
+      if (!matchingGuests.length) {
+        return res.json(
+          wrapTextAsGemini(
+            `I didn’t find guest names explicitly mentioned in videos that match "${topic}" (within recent uploads). Try a broader keyword like "robot", "education", "policy", or "data".`
+          )
+        );
+      }
+
+      const msg =
+        `🎯 Guests explicitly mentioned in videos matching “${topic}” (recent uploads):\n\n` +
+        matchingGuests.map((g, i) => `${i + 1}) ${g.name} (${g.count} match${g.count === 1 ? "" : "es"})`).join("\n") +
+        `\n\nNote: Guests are only listed when their names appear in titles/descriptions.`;
+
+      lastEpisodeContext = {
+        mode: "guest_topic",
+        guests: matchingGuests.map((g) => g.name),
+        list: matchingGuests.flatMap((g) => g.videos).slice(0, 20),
+        query: topic,
+        updatedAt: Date.now(),
+      };
+
+      return res.json(wrapTextAsGemini(msg));
+    }
+
+    // 7) “Has X been on the show?” (SAFE: check only title/description)
+    if (isHasPersonQuestion(userPrompt)) {
+      const person = extractHasPerson(userPrompt);
+      const recent = await getRecentVideos(35);
+      const matches = filterVideosByPerson(recent, person);
+
+      if (!matches.length) {
+        return res.json(
+          wrapTextAsGemini(
+            `I can’t confirm "${person}" from titles/descriptions in recent uploads. If their name isn’t explicitly written in the title or description, I won’t guess.`
+          )
+        );
+      }
+
+      const msg =
+        `✅ Yes — "${person}" is explicitly mentioned in these videos (recent uploads):\n\n` +
+        matches.slice(0, 5).map((v, i) => `${i + 1}) ${v.title}\n   ${v.link}`).join("\n\n") +
+        `\n\nAsk: “Summarize #1” or “Tell me about #2”.`;
+
+      lastEpisodeContext = { mode: "guest_person_check", list: matches.slice(0, 10), query: person, updatedAt: Date.now() };
+      return res.json(wrapTextAsGemini(msg));
+    }
+
+    // 8) Follow-up: "what was it about?" -> summarize last context safely
+    if (isEpisodeAboutQuestion(userPrompt)) {
+      if (!lastEpisodeContext) {
+        return res.json(
+          wrapTextAsGemini(
+            'Ask “What is the latest episode?” or “What are the most popular videos?” or “Who are the guests?” first.'
+          )
+        );
+      }
+
       if (lastEpisodeContext.videoId) {
         return res.json(
           await geminiSummarizeFromText({
@@ -443,10 +649,11 @@ app.post("/api/gemini", async (req, res) => {
         );
       }
 
-      // If last context is a list (popular/topic/person), summarize #1 by default
       const list = lastEpisodeContext.list || [];
       if (!list.length) {
-        return res.json(wrapTextAsGemini("I don’t have a recent list to summarize. Ask for popular/topic videos first."));
+        return res.json(
+          wrapTextAsGemini("I don’t have a recent episode/video saved to summarize. Ask for latest/popular/topic first.")
+        );
       }
 
       const top = list[0];
@@ -460,9 +667,10 @@ app.post("/api/gemini", async (req, res) => {
       );
     }
 
-    // 6) Follow-up: "tell me about #2" / "summarize 3"
+    // 9) Follow-up: "tell me about #2" / "summarize 3"
     const t = normalize(userPrompt);
-    const idxMatch = t.match(/(#|number\s*)(\d+)/i) || t.match(/summarize\s+(\d+)/i) || t.match(/about\s+(\d+)/i);
+    const idxMatch =
+      t.match(/(#|number\s*)(\d+)/i) || t.match(/summarize\s+(\d+)/i) || t.match(/about\s+(\d+)/i);
     if (idxMatch && lastEpisodeContext?.list?.length) {
       const n = Number(idxMatch[idxMatch.length - 1]);
       const list = lastEpisodeContext.list;
@@ -479,14 +687,22 @@ app.post("/api/gemini", async (req, res) => {
       }
     }
 
-    // 7) Everything else -> normal Gemini, but scoped
+    // 10) Everything else -> Gemini, but prevent guest hallucinations
     const system = `
 You are the assistant for the AI With Arun Show website.
-Be accurate and do not invent episode/video details.
-If asked for popular videos, the user can ask: "What are the most popular videos?"
-If asked for a topic, user can ask: "Show videos about robotics/education/politics/etc."
-If asked for a person, user can ask: "Show videos with Joe Reis" (or any name).
-Keep responses concise.
+
+CRITICAL:
+- Do NOT invent guest names.
+- Only claim a person/guest appears if their name is explicitly present in a YouTube title or description.
+- If the user asks about guests, tell them to ask: "Who are the guests on the show?" or "Has <name> been on the show?"
+
+Other helpful queries:
+- "What is the latest episode?"
+- "What are the most popular videos?"
+- "Show videos about robotics/education/politics"
+- "Show videos with <name>"
+
+Keep responses concise and factual.
 `.trim();
 
     const response = await fetch(
@@ -495,9 +711,7 @@ Keep responses concise.
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: `SYSTEM:\n${system}\n\nUSER:\n${userPrompt}` }] },
-          ],
+          contents: [{ role: "user", parts: [{ text: `SYSTEM:\n${system}\n\nUSER:\n${userPrompt}` }] }],
         }),
       }
     );
